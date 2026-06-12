@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<title>NavESP — Bluetooth</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0a0f1e;--surface:#111827;--surface2:#1a2235;
+    --border:#1e2d45;--accent:#00d4ff;--green:#10b981;
+    --amber:#f59e0b;--red:#ef4444;--text:#e2e8f0;--muted:#64748b;
+    --radius:14px;
+  }
+  html,body{height:100%;background:var(--bg);color:var(--text);
+    font-family:-apple-system,'Segoe UI',sans-serif;overflow-x:hidden}
+  .app{display:flex;flex-direction:column;min-height:100dvh}
+
+  header{
+    background:linear-gradient(135deg,#0a1628,#0d1f3c);
+    border-bottom:1px solid var(--border);
+    padding:14px 18px;display:flex;align-items:center;justify-content:space-between
+  }
+  .logo{display:flex;align-items:center;gap:10px}
+  .logo-icon{width:34px;height:34px;border-radius:10px;
+    background:linear-gradient(135deg,#0055ff,#00aaff);
+    display:flex;align-items:center;justify-content:center;font-size:16px}
+  .logo-text{font-size:19px;font-weight:700}
+  .logo-text span{color:var(--accent)}
+  .ble-badge{display:flex;align-items:center;gap:6px;
+    background:var(--surface2);border:1px solid var(--border);
+    border-radius:20px;padding:5px 12px;font-size:12px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+  .dot.on{background:var(--green);box-shadow:0 0 6px var(--green)}
+  .dot.err{background:var(--red)}
+
+  main{flex:1;padding:14px;display:flex;flex-direction:column;gap:12px}
+
+  .card{background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--radius);padding:16px}
+  .card-title{font-size:11px;font-weight:600;letter-spacing:.8px;
+    text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+
+  .btn{padding:13px 20px;border-radius:12px;border:none;cursor:pointer;
+    font-size:15px;font-weight:600;transition:all .2s;width:100%;
+    display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn-ble{background:linear-gradient(135deg,#0055ff,#00aaff);color:#fff}
+  .btn-dis{background:linear-gradient(135deg,var(--red),#cc0000);color:#fff}
+  .btn-nav{background:linear-gradient(135deg,var(--accent),#0066ff);color:#fff}
+  .btn-stop{background:var(--surface2);border:1px solid var(--border);color:var(--text)}
+  .btn-test{background:var(--surface2);border:1px solid var(--border);color:var(--text);
+    flex:1;padding:10px;font-size:13px}
+  .btn:active{transform:scale(.97);opacity:.9}
+  .btn:disabled{opacity:.4;pointer-events:none}
+
+  input[type=text]{width:100%;background:var(--surface2);border:1px solid var(--border);
+    border-radius:10px;padding:12px 14px;color:var(--text);font-size:15px;
+    outline:none;-webkit-appearance:none}
+  input[type=text]:focus{border-color:var(--accent)}
+  input::placeholder{color:var(--muted)}
+
+  .suggestions{margin-top:6px;background:var(--surface2);
+    border:1px solid var(--border);border-radius:10px;overflow:hidden;display:none}
+  .suggestions.show{display:block}
+  .sug-item{padding:11px 14px;font-size:14px;cursor:pointer;
+    border-bottom:1px solid var(--border)}
+  .sug-item:last-child{border-bottom:none}
+  .sug-item:active{background:var(--border)}
+  .sug-main{color:var(--text)}
+  .sug-sub{font-size:11px;color:var(--muted);margin-top:2px}
+
+  .gps-row{display:flex;align-items:center;gap:10px}
+  .gps-icon{width:42px;height:42px;border-radius:12px;
+    background:linear-gradient(135deg,#0a2a1a,#0d3d28);
+    border:1px solid #0f5c3a;display:flex;align-items:center;
+    justify-content:center;font-size:20px;flex-shrink:0}
+  .gps-info{flex:1;min-width:0}
+  .gps-coords{font-size:12px;font-family:monospace;color:var(--green);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gps-acc{font-size:11px;color:var(--muted);margin-top:2px}
+  .gps-btn{flex-shrink:0;padding:8px 12px;border-radius:10px;border:none;
+    cursor:pointer;font-size:12px;font-weight:600}
+  .gps-on{background:var(--green);color:#fff}
+  .gps-off{background:var(--red);color:#fff}
+
+  .route-box{display:none;background:linear-gradient(135deg,#0a1f2e,#0d2a40);
+    border:1px solid #1a4060;border-radius:var(--radius);padding:14px}
+  .route-box.show{display:block}
+  .route-meta{display:flex;gap:10px;margin-bottom:12px}
+  .r-chip{flex:1;text-align:center;background:#0a2535;
+    border:1px solid #1a4060;border-radius:10px;padding:10px 4px}
+  .r-chip .v{font-size:17px;font-weight:700;color:var(--accent)}
+  .r-chip .l{font-size:10px;color:var(--muted);margin-top:2px}
+
+  .step-box{background:var(--surface2);border:1px solid var(--border);
+    border-radius:10px;padding:12px;display:flex;align-items:center;gap:12px}
+  .step-arr{font-size:32px;flex-shrink:0}
+  .step-info{flex:1;min-width:0}
+  .step-dist{font-size:22px;font-weight:700;color:var(--amber)}
+  .step-street{font-size:13px;color:var(--text);margin-top:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .step-next{font-size:11px;color:var(--muted);margin-top:2px}
+
+  .test-row{display:flex;gap:6px;flex-wrap:wrap}
+
+  .toast-wrap{position:fixed;top:14px;left:50%;transform:translateX(-50%);
+    z-index:999;width:calc(100% - 28px);max-width:380px}
+  .toast{background:var(--surface);border:1px solid var(--border);
+    border-radius:12px;padding:11px 15px;margin-bottom:8px;font-size:13px;
+    box-shadow:0 4px 20px rgba(0,0,0,.4);display:flex;align-items:center;gap:8px;
+    animation:si .2s ease}
+  .toast.ok{border-color:var(--green)}
+  .toast.err{border-color:var(--red)}
+  .toast.info{border-color:var(--accent)}
+  @keyframes si{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+
+  .overlay{position:fixed;inset:0;background:rgba(10,15,30,.85);
+    display:none;align-items:center;justify-content:center;
+    z-index:100;flex-direction:column;gap:14px}
+  .overlay.show{display:flex}
+  .spin{width:38px;height:38px;border:3px solid var(--border);
+    border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .spin-txt{font-size:14px;color:var(--muted)}
+
+  .note{font-size:11px;color:var(--muted);text-align:center;
+    padding:6px 8px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🧭</div>
+    <div class="logo-text">Nav<span>ESP</span></div>
+  </div>
+  <div class="ble-badge">
+    <div class="dot" id="bleDot"></div>
+    <span id="bleStatus">Chưa kết nối</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- KẾT NỐI BLE -->
+  <div class="card">
+    <div class="card-title">📶 Bluetooth BLE</div>
+    <button class="btn btn-ble" id="connectBtn" onclick="connectBLE()">
+      🔵 Kết nối NavESP
+    </button>
+    <button class="btn btn-dis" id="disconnectBtn" onclick="disconnectBLE()"
+      style="margin-top:8px;display:none">
+      ✕ Ngắt kết nối
+    </button>
+    <div class="note" id="bleNote">
+      Dùng Chrome trên Android. Bật Bluetooth điện thoại trước.
+    </div>
+  </div>
+
+  <!-- TEST NHANH — gửi lệnh thử không cần GPS -->
+  <div class="card" id="testCard" style="display:none">
+    <div class="card-title">🧪 Test nhanh (gửi lệnh demo)</div>
+    <div class="test-row">
+      <button class="btn btn-test" onclick="testSend('STRAIGHT',350,'Vo Van Tan','Nguyen Hue')">⬆️ Thẳng</button>
+      <button class="btn btn-test" onclick="testSend('LEFT',150,'Nguyen Hue','Le Loi')">↰ Trái</button>
+      <button class="btn btn-test" onclick="testSend('RIGHT',80,'Le Loi','Nam Ky')">↱ Phải</button>
+      <button class="btn btn-test" onclick="testSend('UTURN',200,'CMT8','Ly Tu Trong')">↩️ Quay đầu</button>
+      <button class="btn btn-test" onclick="testSend('ARRIVE',0,'Ben Thanh','')">✅ Đến nơi</button>
+      <button class="btn btn-test" onclick="testSend('WAIT',0,'','')">⏳ Chờ</button>
+    </div>
+  </div>
+
+  <!-- GPS -->
+  <div class="card">
+    <div class="card-title">📍 GPS</div>
+    <div class="gps-row">
+      <div class="gps-icon">📡</div>
+      <div class="gps-info">
+        <div class="gps-coords" id="gpsCoords">Chưa lấy vị trí...</div>
+        <div class="gps-acc"    id="gpsAcc">Nhấn "Bật GPS"</div>
+      </div>
+      <button class="gps-btn gps-on" id="gpsBtn" onclick="toggleGps()">Bật GPS</button>
+    </div>
+  </div>
+
+  <!-- ĐIỂM ĐẾN -->
+  <div class="card">
+    <div class="card-title">🎯 Điểm đến</div>
+    <input type="text" id="destInput" placeholder="Nhập địa điểm..."
+      oninput="onDestInput(this.value)" autocomplete="off"/>
+    <div class="suggestions" id="suggestions"></div>
+    <button class="btn btn-nav" id="startBtn" onclick="startNav()"
+      style="margin-top:10px" disabled>
+      🗺 Bắt đầu dẫn đường
+    </button>
+  </div>
+
+  <!-- THÔNG TIN ROUTE -->
+  <div class="route-box" id="routeBox">
+    <div class="route-meta">
+      <div class="r-chip"><div class="v" id="rDist">—</div><div class="l">Quãng đường</div></div>
+      <div class="r-chip"><div class="v" id="rTime">—</div><div class="l">Thời gian</div></div>
+      <div class="r-chip"><div class="v" id="rSteps">—</div><div class="l">Số bước</div></div>
+    </div>
+    <div class="step-box">
+      <div class="step-arr" id="sArr">⬆️</div>
+      <div class="step-info">
+        <div class="step-dist"   id="sDist">—</div>
+        <div class="step-street" id="sStreet">Đang tính...</div>
+        <div class="step-next"   id="sNext"></div>
+      </div>
+    </div>
+    <button class="btn btn-stop" style="margin-top:10px" onclick="stopNav()">
+      ⏹ Dừng dẫn đường
+    </button>
+  </div>
+
+</main>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="spin"></div>
+  <div class="spin-txt" id="overlayTxt">Đang xử lý...</div>
+</div>
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  UUID — phải khớp với firmware ESP32 (config.h)
+// ════════════════════════════════════════════════════════════
+const SVC_UUID    = '12345678-1234-1234-1234-123456789abc';
+const NAV_UUID    = '12345678-1234-1234-1234-123456789abd';
+const STATUS_UUID = '12345678-1234-1234-1234-123456789abe';
+
+// ════════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════════
+let bleDevice    = null;
+let bleServer    = null;
+let navChar      = null;
+let statusChar   = null;
+let gpsWatcher   = null;
+let userPos      = null;
+let selectedDest = null;
+let isNavigating = false;
+let sendTimer    = null;
+let allSteps     = [];
+let currentStep  = 0;
+let acTimer      = null;
+
+const ARRIVE_M = 30;
+
+// ════════════════════════════════════════════════════════════
+//  BLE — KẾT NỐI
+// ════════════════════════════════════════════════════════════
+async function connectBLE() {
+  if (!navigator.bluetooth) {
+    toast('Trình duyệt không hỗ trợ BLE. Dùng Chrome Android!', 'err');
+    return;
+  }
+  showOverlay('Đang tìm NavESP...');
+  try {
+    bleDevice = await navigator.bluetooth.requestDevice({
+      filters: [{ name: 'NavESP' }],
+      optionalServices: [SVC_UUID]
+    });
+    bleDevice.addEventListener('gattserverdisconnected', onBleDisconnect);
+
+    showOverlay('Đang kết nối...');
+    bleServer = await bleDevice.gatt.connect();
+
+    const svc = await bleServer.getPrimaryService(SVC_UUID);
+    navChar    = await svc.getCharacteristic(NAV_UUID);
+    statusChar = await svc.getCharacteristic(STATUS_UUID);
+
+    await statusChar.startNotifications();
+    statusChar.addEventListener('characteristicvaluechanged', onStatusNotify);
+
+    setBleUI(true);
+    toast('✅ Đã kết nối NavESP!', 'ok');
+
+  } catch(e) {
+    toast('Lỗi BLE: ' + e.message, 'err');
+  } finally {
+    hideOverlay();
+  }
+}
+
+function onBleDisconnect() {
+  setBleUI(false);
+  navChar = null; statusChar = null;
+  toast('Mất kết nối BLE', 'err');
+  if (isNavigating) stopNav();
+}
+
+async function disconnectBLE() {
+  if (bleDevice && bleDevice.gatt.connected) bleDevice.gatt.disconnect();
+  setBleUI(false);
+}
+
+function onStatusNotify(e) {
+  const val = new TextDecoder().decode(e.target.value);
+  console.log('[BLE status]', val);
+}
+
+function setBleUI(connected) {
+  document.getElementById('bleDot').className    = 'dot ' + (connected ? 'on' : 'err');
+  document.getElementById('bleStatus').textContent = connected ? 'NavESP kết nối' : 'Chưa kết nối';
+  document.getElementById('connectBtn').style.display    = connected ? 'none' : 'flex';
+  document.getElementById('disconnectBtn').style.display = connected ? 'flex' : 'none';
+  document.getElementById('testCard').style.display      = connected ? 'block' : 'none';
+  document.getElementById('bleNote').textContent = connected
+    ? '✅ ESP32 đã sẵn sàng nhận lệnh'
+    : 'Dùng Chrome trên Android. Bật Bluetooth trước.';
+  updateStartBtn();
+}
+
+// ════════════════════════════════════════════════════════════
+//  GỬI LỆNH QUA BLE
+// ════════════════════════════════════════════════════════════
+async function sendNav(payload) {
+  if (!navChar) { toast('Chưa kết nối BLE','err'); return; }
+  try {
+    const enc = new TextEncoder().encode(JSON.stringify(payload));
+    await navChar.writeValueWithoutResponse(enc);
+  } catch(e) {
+    toast('Lỗi gửi: ' + e.message, 'err');
+  }
+}
+
+// ─── NÚT TEST NHANH ─────────────────────────────────────────
+function testSend(dir, dist, street, next) {
+  const payload = { dir, dist, street, next };
+  sendNav(payload);
+  updateStepUI(payload);
+  toast('Đã gửi: ' + dir, 'info');
+}
+
+// ════════════════════════════════════════════════════════════
+//  GPS
+// ════════════════════════════════════════════════════════════
+function toggleGps() {
+  if (gpsWatcher) {
+    navigator.geolocation.clearWatch(gpsWatcher);
+    gpsWatcher = null;
+    document.getElementById('gpsBtn').className   = 'gps-btn gps-on';
+    document.getElementById('gpsBtn').textContent = 'Bật GPS';
+    document.getElementById('gpsAcc').textContent = 'Đã tắt GPS';
+    return;
+  }
+  if (!navigator.geolocation) { toast('Không hỗ trợ GPS','err'); return; }
+  gpsWatcher = navigator.geolocation.watchPosition(onGps, onGpsErr,
+    { enableHighAccuracy:true, maximumAge:2000, timeout:10000 });
+  document.getElementById('gpsBtn').className   = 'gps-btn gps-off';
+  document.getElementById('gpsBtn').textContent = 'Tắt GPS';
+}
+
+function onGps(pos) {
+  userPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
+  document.getElementById('gpsCoords').textContent =
+    `${userPos.lat.toFixed(6)}, ${userPos.lng.toFixed(6)}`;
+  document.getElementById('gpsAcc').textContent = `±${Math.round(userPos.acc)}m`;
+  updateStartBtn();
+}
+function onGpsErr(e) { toast('GPS: ' + e.message, 'err'); }
+
+// ════════════════════════════════════════════════════════════
+//  AUTOCOMPLETE (OpenStreetMap Nominatim — miễn phí)
+// ════════════════════════════════════════════════════════════
+function onDestInput(v) {
+  selectedDest = null; updateStartBtn();
+  clearTimeout(acTimer);
+  if (v.length < 3) { hideSug(); return; }
+  acTimer = setTimeout(() => fetchPlaces(v), 400);
+}
+
+async function fetchPlaces(q) {
+  if (!userPos) return;
+  try {
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&countrycodes=vn`,
+      { headers: {'Accept-Language':'vi'} }
+    );
+    showSug(await r.json());
+  } catch { hideSug(); }
+}
+
+function showSug(places) {
+  const el = document.getElementById('suggestions');
+  if (!places.length) { hideSug(); return; }
+  el.innerHTML = places.map(p => {
+    const name = p.name || p.display_name.split(',')[0];
+    const sub  = p.display_name.split(',').slice(1,3).join(',').trim();
+    return `<div class="sug-item" onclick="selectDest(${p.lat},${p.lon},'${esc(name)}')">
+      <div class="sug-main">${esc(name)}</div>
+      <div class="sug-sub">${esc(sub)}</div></div>`;
+  }).join('');
+  el.classList.add('show');
+}
+
+function selectDest(lat, lng, name) {
+  selectedDest = { lat:+lat, lng:+lng, name };
+  document.getElementById('destInput').value = name;
+  hideSug(); updateStartBtn();
+  toast('Đã chọn: ' + name, 'ok');
+}
+function hideSug() { document.getElementById('suggestions').classList.remove('show'); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/'/g,'&#39;'); }
+function updateStartBtn() {
+  document.getElementById('startBtn').disabled = !(userPos && selectedDest && navChar && !isNavigating);
+}
+
+// ════════════════════════════════════════════════════════════
+//  HAVERSINE
+// ════════════════════════════════════════════════════════════
+function haversine(la1,ln1,la2,ln2) {
+  const R=6371000, d2r=Math.PI/180;
+  const dLa=(la2-la1)*d2r, dLn=(ln2-ln1)*d2r;
+  const a=Math.sin(dLa/2)**2 + Math.cos(la1*d2r)*Math.cos(la2*d2r)*Math.sin(dLn/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// ════════════════════════════════════════════════════════════
+//  PARSE HƯỚNG
+// ════════════════════════════════════════════════════════════
+function parseDir(maneuver) {
+  if (!maneuver) return 'STRAIGHT';
+  const m = maneuver.toLowerCase();
+  if (m.includes('uturn'))   return 'UTURN';
+  if (m.includes('left'))    return 'LEFT';
+  if (m.includes('right'))   return 'RIGHT';
+  return 'STRAIGHT';
+}
+
+// ════════════════════════════════════════════════════════════
+//  BẮT ĐẦU DẪN ĐƯỜNG (dùng OSRM routing — miễn phí, không cần key)
+// ════════════════════════════════════════════════════════════
+async function startNav() {
+  if (!userPos || !selectedDest || !navChar) return;
+  showOverlay('Đang tính lộ trình...');
+  try {
+    const r = await fetch(
+      `https://router.project-osrm.org/route/v1/driving/` +
+      `${userPos.lng},${userPos.lat};${selectedDest.lng},${selectedDest.lat}` +
+      `?overview=false&steps=true`
+    );
+    const data = await r.json();
+    if (data.code !== 'Ok') throw new Error('Không tính được lộ trình');
+
+    allSteps = data.routes[0].legs[0].steps;
+    currentStep = 0;
+
+    document.getElementById('rDist').textContent  = (data.routes[0].distance/1000).toFixed(1)+'km';
+    document.getElementById('rTime').textContent  = Math.round(data.routes[0].duration/60)+' phút';
+    document.getElementById('rSteps').textContent = allSteps.length;
+    document.getElementById('routeBox').classList.add('show');
+
+    isNavigating = true;
+    updateStartBtn();
+    toast('🚀 Bắt đầu đến ' + selectedDest.name, 'ok');
+
+    sendStep(0);
+    sendTimer = setInterval(updateLocation, 2000);
+
+  } catch(e) {
+    toast('Lỗi routing: ' + e.message, 'err');
+  } finally {
+    hideOverlay();
+  }
+}
+
+function sendStep(idx) {
+  if (!allSteps.length) return;
+  const step = allSteps[idx];
+  const next = allSteps[idx+1];
+
+  const maneuver = step.maneuver?.type || 'straight';
+  const dir = parseDir(maneuver);
+  const dist = Math.round(haversine(
+    userPos.lat, userPos.lng,
+    step.maneuver.location[1], step.maneuver.location[0]
+  ));
+
+  const payload = {
+    dir,
+    dist,
+    street: (step.name || 'Tiep tuc').substring(0,28),
+    next:   next ? (next.name||'').substring(0,25) : ''
+  };
+
+  const dDest = haversine(userPos.lat,userPos.lng,selectedDest.lat,selectedDest.lng);
+  if (dDest < ARRIVE_M) {
+    payload.dir    = 'ARRIVE';
+    payload.dist   = 0;
+    payload.street = selectedDest.name.substring(0,28);
+    payload.next   = '';
+    clearInterval(sendTimer);
+    toast('🎉 Đã đến nơi!', 'ok');
+    isNavigating = false;
+  }
+
+  sendNav(payload);
+  updateStepUI(payload);
+}
+
+const DIR_EMOJI = {STRAIGHT:'⬆️',LEFT:'↰',RIGHT:'↱',UTURN:'↩️',ARRIVE:'✅',WAIT:'⏳'};
+function updateStepUI(payload) {
+  document.getElementById('sArr').textContent    = DIR_EMOJI[payload.dir]||'⬆️';
+  document.getElementById('sDist').textContent   = payload.dist >= 1000
+    ? (payload.dist/1000).toFixed(1)+'km' : payload.dist+'m';
+  document.getElementById('sStreet').textContent = payload.street || '—';
+  document.getElementById('sNext').textContent   = payload.next ? 'Tiếp: '+payload.next : '';
+}
+
+function updateLocation() {
+  if (!userPos || !allSteps.length) return;
+  let bestIdx = currentStep, bestD = Infinity;
+  for (let i = currentStep; i < allSteps.length; i++) {
+    const loc = allSteps[i].maneuver.location;
+    const d   = haversine(userPos.lat, userPos.lng, loc[1], loc[0]);
+    if (d < bestD) { bestD=d; bestIdx=i; }
+    if (d > 500) break;
+  }
+  currentStep = bestIdx;
+  sendStep(bestIdx);
+}
+
+function stopNav() {
+  clearInterval(sendTimer);
+  isNavigating = false;
+  allSteps = []; currentStep = 0;
+  document.getElementById('routeBox').classList.remove('show');
+  updateStartBtn();
+  sendNav({ dir:'WAIT', dist:0, street:'', next:'' });
+  toast('Đã dừng dẫn đường', 'info');
+}
+
+// ════════════════════════════════════════════════════════════
+//  TOAST & OVERLAY
+// ════════════════════════════════════════════════════════════
+function toast(msg, type='info') {
+  const icons = {ok:'✅',err:'❌',info:'ℹ️'};
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
+  document.getElementById('toasts').prepend(el);
+  setTimeout(()=>el.remove(), 3500);
+}
+function showOverlay(txt) {
+  document.getElementById('overlayTxt').textContent = txt;
+  document.getElementById('overlay').classList.add('show');
+}
+function hideOverlay() { document.getElementById('overlay').classList.remove('show'); }
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#suggestions') && !e.target.closest('#destInput')) hideSug();
+});
+</script>
+</body>
+</html>
